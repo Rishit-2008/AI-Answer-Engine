@@ -3,6 +3,11 @@ from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import re
+import os
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 def sanitize_input(user_input):
     return re.sub(r"[<>'\";]", '', user_input)
@@ -10,27 +15,38 @@ def sanitize_input(user_input):
 def scrape_google(query):
     sanitized_query = sanitize_input(query)
     url = f"https://www.google.com/search?q={sanitized_query}"
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
+
     try:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             return {"error": f"HTTP {response.status_code}"}
+
         soup = BeautifulSoup(response.text, 'html.parser')
         results = []
+
         for g in soup.find_all('div', class_='tF2Cxc')[:5]:
             title = g.find('h3').text if g.find('h3') else 'No title available'
             link = g.find('a')['href'] if g.find('a') else 'No link available'
             snippet = g.find('span', class_='aCOpRe').text if g.find('span', class_='aCOpRe') else 'No snippet available'
+
             results.append({"title": title, "link": link, "snippet": snippet})
+
         return {"results": results}
+
     except Exception as e:
         return {"error": str(e)}
 
 def get_ai_answer(query, context):
-    api_key = st.secrets["openai_api_key"]
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("API key is missing. Set it in Render Secrets or a .env file.")
+        
     client = OpenAI(api_key=api_key)
+
     try:
         context_text = "\n".join(
             [f"Title: {item['title']}\nSnippet: {item['snippet']}\nLink: {item['link']}" for item in context]
@@ -44,11 +60,13 @@ def get_ai_answer(query, context):
             max_tokens=1000,
             temperature=0.7
         )
+
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"An error occurred: {e}"
 
 def main():
+   
     st.markdown(
     """
     <style>
