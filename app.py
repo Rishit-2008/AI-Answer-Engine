@@ -1,11 +1,12 @@
-import streamlit as st
+from flask import Flask, request, jsonify
 from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import re
+import streamlit as st
 
 def sanitize_input(user_input):
-    return re.sub(r"[<>\'\";]", '', user_input)
+    return re.sub(r"[<>'\";]", '', user_input)
 
 def scrape_google(query):
     sanitized_query = sanitize_input(query)
@@ -29,9 +30,8 @@ def scrape_google(query):
         return {"error": str(e)}
 
 def get_ai_answer(query, context):
-    client = OpenAI(
-        api_key="openai_api_key"
-    )
+    api_key = st.secrets["openai_api_key"]
+    client = OpenAI(api_key=api_key)
     try:
         context_text = "\n".join(
             [f"Title: {item['title']}\nSnippet: {item['snippet']}\nLink: {item['link']}" for item in context]
