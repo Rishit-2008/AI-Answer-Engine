@@ -43,7 +43,7 @@ def scrape_google(query):
 def get_ai_answer(query, context):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("API key is missing. Set it in Render Secrets or a .env file.")
+        raise ValueError("API key is missing. Set it in a .env file.")
         
     client = OpenAI(api_key=api_key)
 
