@@ -1,9 +1,8 @@
-from flask import Flask, request, jsonify
+import streamlit as st
 from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import re
-import streamlit as st
 
 def sanitize_input(user_input):
     return re.sub(r"[<>'\";]", '', user_input)
