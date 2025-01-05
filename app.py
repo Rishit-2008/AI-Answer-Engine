@@ -37,7 +37,7 @@ def scrape_google(query):
 
 def get_ai_answer(query, context):
     client = OpenAI(
-        api_key="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"
+        api_key="openai_api_key"
     )
 
     try:
