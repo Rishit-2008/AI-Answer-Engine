@@ -1,44 +1,36 @@
 import streamlit as st
 from openai import OpenAI
 import requests
-from bs4 import BeautifulSoup
 import re
 import os
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
 def sanitize_input(user_input):
     return re.sub(r"[<>'\";]", '', user_input)
 
-def scrape_google(query):
-    sanitized_query = sanitize_input(query)
-    url = f"https://www.google.com/search?q={sanitized_query}"
+def scrape_serper(query):
+    api_key = os.getenv("SERPER_API_KEY")
+    url = "https://google.serper.dev/search"
+    headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
+    payload = {"q": query}
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    data = response.json()
+    results = data.get("organic", [])
+
+    return {
+        "results": [
+            {
+                "title": item.get("title", "No title"),
+                "link": item.get("link", "No link"),
+                "snippet": item.get("snippet", "No snippet")
+            }
+            for item in results
+        ]
     }
-
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            return {"error": f"HTTP {response.status_code}"}
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        results = []
-
-        for g in soup.find_all('div', class_='tF2Cxc')[:5]:
-            title = g.find('h3').text if g.find('h3') else 'No title available'
-            link = g.find('a')['href'] if g.find('a') else 'No link available'
-            snippet = g.find('span', class_='aCOpRe').text if g.find('span', class_='aCOpRe') else 'No snippet available'
-
-            results.append({"title": title, "link": link, "snippet": snippet})
-
-        return {"results": results}
-
-    except Exception as e:
-        return {"error": str(e)}
 
 def get_ai_answer(query, context):
     api_key = os.getenv("OPENAI_API_KEY")
@@ -66,7 +58,10 @@ def get_ai_answer(query, context):
         return f"An error occurred: {e}"
 
 def main():
-   
+    st.set_page_config(
+        page_title="AI Answer Engine",
+        page_icon="✨",
+    )
     st.markdown(
     """
     <style>
@@ -93,13 +88,13 @@ def main():
         }
         .stApp {
             background: var(--bg-primary) !important;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
         .gradient-header {
             color: var(--text-primary);
-            font-size: 2.5rem;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
             font-weight: 700;
             text-align: center;
             margin-bottom: 30px;
@@ -111,9 +106,9 @@ def main():
         .stTextInput > div > input {
             background: var(--bg-secondary) !important;
             border: 1px solid #2D3748 !important;
-            color: var(--text-primary) !important;
+            color: #FFFFFF !important;
             border-radius: var(--border-radius) !important;
-            padding: 15px 20px !important;
+            padding: 12px 16px !important;
             font-size: 1rem !important;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
@@ -128,7 +123,8 @@ def main():
             border: none !important;
             color: white !important;
             border-radius: var(--border-radius) !important;
-            padding: 12px 25px !important;
+            padding: 10px 18px !important;
+            font-size: 0.95rem !important;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -141,8 +137,8 @@ def main():
         .stMarkdown {
             background: var(--bg-secondary);
             border-radius: var(--border-radius);
-            padding: 20px;
-            margin-bottom: 15px;
+            padding: 12px;
+            margin-bottom: 12px;
             border: 1px solid #2D3748;
             color: var(--text-secondary);
         }
@@ -178,7 +174,7 @@ def main():
     unsafe_allow_html=True
 )
     st.markdown('<div class="gradient-header">AI Answer Engine</div>', unsafe_allow_html=True)
-    query = st.text_input("Enter your query or topic:", key="query", placeholder="Ask Question Here...",
+    query = st.text_input("", key="query", placeholder="Ask Question Here...",
                           help="Provide a topic or question to get started")
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
@@ -187,7 +183,7 @@ def main():
                 st.warning("")
             else:
                 st.markdown('<div class="fade-in">✨ Fetching answer...</div>', unsafe_allow_html=True)
-                scraped_results = scrape_google(query)
+                scraped_results = scrape_serper(query)
                 if "error" in scraped_results:
                     st.error(f"Error: {scraped_results['error']}")
                 else:
@@ -197,18 +193,24 @@ def main():
     with col3:
         if st.button("Get Articles", key="articles_button"):
             if not query:
-                st.warning("Please enter a query.")
+                st.warning("")
             else:
                 st.markdown('<div class="fade-in">📰 Fetching articles...</div>', unsafe_allow_html=True)
-                articles = scrape_google(query)
+                articles = scrape_serper(query)
                 if "error" in articles:
                     st.error(f"Error: {articles['error']}")
                 else:
                     st.subheader("Found Articles 📚")
                     for article in articles["results"]:
-                        st.markdown(f"### [{article['title']}]({article['link']})")
-                        st.write(article['snippet'])
-                        st.markdown("---")
+                        st.markdown(
+                            f"""
+                            <div style="background: var(--bg-secondary); border-radius: var(--border-radius); padding: 15px; margin-bottom: 15px; border: 1px solid #2D3748;">
+                                <h3 style="margin-bottom: 10px;"><a href="{article['link']}" style="color: #3B82F6; text-decoration: none;">{article['title']}</a></h3>
+                                <p style="color: var(--text-secondary); margin: 0;">{article['snippet']}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
     st.markdown(
         """
         <div style='text-align: center; margin-top: 50px;'>
